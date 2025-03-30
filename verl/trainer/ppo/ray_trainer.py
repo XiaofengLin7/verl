@@ -451,7 +451,7 @@ class RayPPOTrainer(object):
             # which will schedule the memory themselves.
             batch_size=len(self.val_dataset),
             num_workers=8,
-            shuffle=False,
+            shuffle=True,
             drop_last=False,
             collate_fn=collate_fn)
 

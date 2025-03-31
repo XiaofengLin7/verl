@@ -161,41 +161,41 @@ class RLHFDataset(Dataset):
 
         chat = row_dict.pop(self.prompt_key)
 
-        prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
+        # prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
 
-        is_multi_modal = self.image_key in row_dict
-        if is_multi_modal:  # expand image token
-            raw_prompt = prompt_with_chat_template.replace('<image>', '<|vision_start|><|image_pad|><|vision_end|>')
-            row_dict['multi_modal_data'] = {'image': [process_image(image) for image in row_dict.pop(self.image_key)]}
-            image_inputs = self.processor.image_processor(row_dict['multi_modal_data']['image'], return_tensors='pt')
-            image_grid_thw = image_inputs['image_grid_thw']
-            row_dict['multi_modal_inputs'] = {key: val for key, val in image_inputs.items()}
+        # is_multi_modal = self.image_key in row_dict
+        # if is_multi_modal:  # expand image token
+        #     raw_prompt = prompt_with_chat_template.replace('<image>', '<|vision_start|><|image_pad|><|vision_end|>')
+        #     row_dict['multi_modal_data'] = {'image': [process_image(image) for image in row_dict.pop(self.image_key)]}
+        #     image_inputs = self.processor.image_processor(row_dict['multi_modal_data']['image'], return_tensors='pt')
+        #     image_grid_thw = image_inputs['image_grid_thw']
+        #     row_dict['multi_modal_inputs'] = {key: val for key, val in image_inputs.items()}
 
-            if image_grid_thw is not None:
-                merge_length = self.processor.image_processor.merge_size**2
-                index = 0
-                while '<image>' in prompt_with_chat_template:
-                    prompt_with_chat_template = prompt_with_chat_template.replace(
-                        '<image>',
-                        '<|vision_start|>' + '<|placeholder|>' * (image_grid_thw[index].prod() // merge_length) +
-                        '<|vision_end|>',
-                        1,
-                    )
-                    index += 1
+        #     if image_grid_thw is not None:
+        #         merge_length = self.processor.image_processor.merge_size**2
+        #         index = 0
+        #         while '<image>' in prompt_with_chat_template:
+        #             prompt_with_chat_template = prompt_with_chat_template.replace(
+        #                 '<image>',
+        #                 '<|vision_start|>' + '<|placeholder|>' * (image_grid_thw[index].prod() // merge_length) +
+        #                 '<|vision_end|>',
+        #                 1,
+        #             )
+        #             index += 1
 
-                prompt_with_chat_template = prompt_with_chat_template.replace('<|placeholder|>',
-                                                                              self.processor.image_token)
-        else:
-            raw_prompt = prompt_with_chat_template
+        #         prompt_with_chat_template = prompt_with_chat_template.replace('<|placeholder|>',
+        #                                                                       self.processor.image_token)
+        # else:
+        #     raw_prompt = prompt_with_chat_template
 
 
-        # original code from verl
-        # input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
-        #                                                                  tokenizer=self.tokenizer,
-        #                                                                  max_length=self.max_prompt_length,
-        #                                                                  pad_token_id=self.tokenizer.pad_token_id,
-        #                                                                  left_pad=True,
-        #                                                                  truncation=self.truncation)
+        # # original code from verl
+        # # input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
+        # #                                                                  tokenizer=self.tokenizer,
+        # #                                                                  max_length=self.max_prompt_length,
+        # #                                                                  pad_token_id=self.tokenizer.pad_token_id,
+        # #                                                                  left_pad=True,
+        # #                                                                  truncation=self.truncation)
         # Note: different from verl, get rid of chat template
         original_prompt = chat[0]['content']
         raw_prompt = original_prompt
@@ -205,17 +205,17 @@ class RLHFDataset(Dataset):
                                                                          pad_token_id=self.tokenizer.pad_token_id,
                                                                          left_pad=True,
                                                                          truncation=self.truncation)
-        if is_multi_modal:
-            from verl.models.transformers.qwen2_vl import get_rope_index
+        # if is_multi_modal:
+        #     from verl.models.transformers.qwen2_vl import get_rope_index
 
-            position_ids = get_rope_index(
-                self.processor,
-                input_ids=input_ids[0],
-                image_grid_thw=image_grid_thw,
-                attention_mask=attention_mask[0],
-            )  # (3, seq_len)
-        else:
-            position_ids = compute_position_id_with_mask(attention_mask)
+        #     position_ids = get_rope_index(
+        #         self.processor,
+        #         input_ids=input_ids[0],
+        #         image_grid_thw=image_grid_thw,
+        #         attention_mask=attention_mask[0],
+        #     )  # (3, seq_len)
+        # else:
+        position_ids = compute_position_id_with_mask(attention_mask)
 
         row_dict['input_ids'] = input_ids[0]
         row_dict['attention_mask'] = attention_mask[0]

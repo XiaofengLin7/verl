@@ -188,13 +188,23 @@ class RLHFDataset(Dataset):
         else:
             raw_prompt = prompt_with_chat_template
 
-        input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
+
+        # original code from verl
+        # input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
+        #                                                                  tokenizer=self.tokenizer,
+        #                                                                  max_length=self.max_prompt_length,
+        #                                                                  pad_token_id=self.tokenizer.pad_token_id,
+        #                                                                  left_pad=True,
+        #                                                                  truncation=self.truncation)
+        # Note: different from verl, get rid of chat template
+        original_prompt = chat[0]['content']
+        raw_prompt = original_prompt
+        input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=original_prompt,
                                                                          tokenizer=self.tokenizer,
                                                                          max_length=self.max_prompt_length,
                                                                          pad_token_id=self.tokenizer.pad_token_id,
                                                                          left_pad=True,
                                                                          truncation=self.truncation)
-
         if is_multi_modal:
             from verl.models.transformers.qwen2_vl import get_rope_index
 

@@ -47,6 +47,7 @@ class SFTDataset(Dataset):
         response_dict_keys = config.get('response_dict_keys', None)
         max_length = config.get('max_length', 1024)
         truncation = config.get('truncation', 'error')
+        self.apply_chat_template = config.get('apply_chat_template', False)
 
         assert truncation in ['error', 'left', 'right']
         self.truncation = truncation
@@ -59,8 +60,9 @@ class SFTDataset(Dataset):
             tokenizer = hf_tokenizer(tokenizer)
         self.tokenizer: PreTrainedTokenizer = tokenizer
 
-        self.prompt_key = prompt_key if isinstance(prompt_key, (tuple, list)) else [prompt_key]
-        self.response_key = response_key if isinstance(response_key, (tuple, list)) else [response_key]
+        self.prompt_key = prompt_key[0] if isinstance(prompt_key, (tuple, list)) else prompt_key
+        self.response_key = response_key[0] if isinstance(response_key, (tuple, list)) else response_key
+        
         self.prompt_dict_keys = [] if not prompt_dict_keys else prompt_dict_keys
         self.response_dict_keys = [] if not response_dict_keys else response_dict_keys
 
@@ -120,7 +122,10 @@ class SFTDataset(Dataset):
         prompt_chat = [{'role': 'user', 'content': prompt}]
 
         # string
-        prompt_chat_str = tokenizer.apply_chat_template(prompt_chat, add_generation_prompt=True, tokenize=False)
+        if self.apply_chat_template:
+            prompt_chat_str = tokenizer.apply_chat_template(prompt_chat, add_generation_prompt=True, tokenize=False)
+        else:
+            prompt_chat_str = prompt
         response_chat_str = response + tokenizer.eos_token
 
         # tokenize

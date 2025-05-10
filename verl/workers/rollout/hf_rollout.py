@@ -49,9 +49,9 @@ class HFRollout(BaseRollout):
 
     @torch.no_grad()
     def _generate_minibatch(self, prompts: DataProto) -> DataProto:
-        idx = prompts.batch['input_ids']  # (bs, prompt_length)
-        attention_mask = prompts.batch['attention_mask']  # left-padded attention_mask
-        position_ids = prompts.batch['position_ids']
+        idx = prompts.batch['input_ids'].cuda()  # (bs, prompt_length)
+        attention_mask = prompts.batch['attention_mask'].cuda()  # left-padded attention_mask
+        position_ids = prompts.batch['position_ids'].cuda()
 
         # used to construct attention_mask
         eos_token_id = prompts.meta_info['eos_token_id']

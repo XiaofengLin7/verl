@@ -94,7 +94,8 @@ class HFRollout(BaseRollout):
                     # renormalize_logits=True,
                     output_scores=False,  # this is potentially very large
                     return_dict_in_generate=True,
-                    use_cache=True)
+                    use_cache=True,
+                    synced_gpus=True)
         # TODO: filter out the seq with no answers like ds-chat
         seq = output.sequences
 

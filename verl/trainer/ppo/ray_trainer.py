@@ -69,6 +69,7 @@ class AdvantageEstimator(str, Enum):
     REINFORCE_PLUS_PLUS = 'reinforce_plus_plus'
     REMAX = 'remax'
     RLOO = 'rloo'
+    PSR_NSR = 'psr_nsr'
 
 
 @dataclass
@@ -170,7 +171,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, advantage='positive', positive_advantage_weight=1.0):
     # Back-compatible with trainers that do not compute response mask in fit
     if "response_mask" not in data.batch.keys():
         data.batch['response_mask'] = compute_response_mask(data)
@@ -213,6 +214,19 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             token_level_rewards=data.batch['token_level_rewards'],
             response_mask=data.batch['response_mask'],
             index=data.non_tensor_batch['uid'])
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
+    elif adv_estimator == AdvantageEstimator.PSR_NSR:
+        response_mask = data.batch['response_mask']
+        token_level_rewards = data.batch['token_level_rewards']
+        token_level_scores = data.batch['token_level_scores']
+        advantages, returns = core_algos.compute_psr_nsr_outcome_advantage(token_level_rewards=token_level_rewards,
+                                                                      token_level_scores=token_level_scores,
+                                                                      response_mask=response_mask,
+                                                                      gamma=gamma,
+                                                                      advantage=advantage,
+                                                                      positive_advantage_weight=positive_advantage_weight,
+                                                                      )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
     else:
@@ -274,7 +288,7 @@ class RayPPOTrainer(object):
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
                 AdvantageEstimator.GRPO, AdvantageEstimator.REINFORCE_PLUS_PLUS, AdvantageEstimator.REMAX,
-                AdvantageEstimator.RLOO
+                AdvantageEstimator.RLOO, AdvantageEstimator.PSR_NSR
         ]:
             self.use_critic = False
         else:

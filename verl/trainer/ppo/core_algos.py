@@ -149,6 +149,50 @@ def compute_grpo_outcome_advantage(token_level_rewards: torch.Tensor,
 
     return scores, scores
 
+def compute_psr_nsr_outcome_advantage(token_level_rewards: torch.Tensor, token_level_scores: torch.Tensor, response_mask: torch.Tensor,
+                                  gamma: torch.Tensor, advantage: str, positive_advantage_weight: float):
+    """
+    Compute advantage for PSR, NSR, and W-REINFORCE.
+    Args:
+        token_level_rewards: `(torch.Tensor)`
+            shape: (bs, response_length)
+        token_level_scores: `(torch.Tensor)`
+            shape: (bs, response_length)
+        response_mask: `(torch.Tensor)`
+            shape: (bs, response_length)
+    
+    Returns:
+        advantages: `(torch.Tensor)`
+            shape: (bs, response_length)
+        Returns: `(torch.Tensor)`
+            shape: (bs, response_length)
+    """
+    # TODO: gamma should be always 1.0, token_level_rewards should be equal to token_level_scores.
+    with torch.no_grad():
+        returns = torch.zeros_like(token_level_rewards)
+        running_return = 0
+        correct_idx = token_level_scores.sum(-1) == 1 
+        incorrect_idx = token_level_scores.sum(-1) == 0
+
+        for t in reversed(range(token_level_rewards.shape[1])):
+            running_return = token_level_rewards[:, t] + gamma * running_return
+            returns[:, t] = running_return
+            # Reset after EOS
+            running_return = running_return * response_mask[:, t]
+
+        if advantage == 'positive':
+            advantages = returns.clone()
+        elif advantage == 'negative':
+            advantages = returns.clone() - 1
+        elif advantage == 'weighted':
+            advantages = returns.clone()
+            advantages[correct_idx] *= positive_advantage_weight
+            advantages[incorrect_idx] -= 1
+        else:
+            raise NotImplementedError
+        advantages = advantages * response_mask
+
+    return advantages, returns
 
 def compute_rloo_outcome_advantage(token_level_rewards: torch.Tensor,
                                    response_mask: torch.Tensor,

@@ -68,7 +68,7 @@ class HFRollout(BaseRollout):
         response_length = prompts.meta_info.get('response_length', self.config.response_length)
         top_p = prompts.meta_info.get('top_p', self.config.get('top_p', 1.0))
         top_k = prompts.meta_info.get('top_k', self.config.get('top_k', 0))
-        print(f"do_sample: {do_sample}")
+        # print(f"do_sample: {do_sample}")
         if top_k is None:
             top_k = 0
         top_k = max(0, top_k)  # to be compatible with vllm

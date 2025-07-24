@@ -28,6 +28,8 @@ from verl.utils.torch_functional import get_response_mask
 from .base import BaseRollout
 
 from transformers import GenerationConfig
+from verl.utils.torch_functional import logprobs_from_logits
+import verl.utils.torch_functional as verl_F
 
 __all__ = ['HFRollout']
 
@@ -52,7 +54,7 @@ class HFRollout(BaseRollout):
         idx = prompts.batch['input_ids'].cuda()  # (bs, prompt_length)
         attention_mask = prompts.batch['attention_mask'].cuda()  # left-padded attention_mask
         position_ids = prompts.batch['position_ids'].cuda()
-
+        # print("idx device:", idx.device)
         # used to construct attention_mask
         eos_token_id = prompts.meta_info['eos_token_id']
         pad_token_id = prompts.meta_info['pad_token_id']
@@ -82,6 +84,9 @@ class HFRollout(BaseRollout):
             param_ctx = FSDP.summon_full_params(self.module, writeback=False, recurse=False)
         with param_ctx:
             with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                # print("idx device:", idx.device)
+                # print("attention_mask device:", attention_mask.device)
+
                 output = self.module.generate(
                     input_ids=idx,
                     attention_mask=attention_mask,
@@ -96,6 +101,11 @@ class HFRollout(BaseRollout):
                     return_dict_in_generate=True,
                     use_cache=True,
                     synced_gpus=True)
+                
+                raw_output = self.module(input_ids=idx,
+                                         attention_mask=attention_mask,
+                                         position_ids=position_ids,
+                                         use_cache=False)
         # TODO: filter out the seq with no answers like ds-chat
         seq = output.sequences
 
@@ -126,13 +136,21 @@ class HFRollout(BaseRollout):
                                                     dtype=attention_mask.dtype)
         attention_mask = torch.cat((attention_mask, response_attention_mask), dim=-1)
 
+        logits = raw_output.logits
+        logits.div_(temperature)
+        logits = logits[:, -response_length - 1:-1, :]  # (bsz, response_length, vocab_size)
+        log_probs = logprobs_from_logits(logits, response)
+        entropy = verl_F.entropy_from_logits(logits)  # (bsz, response_length)
+
         batch = TensorDict(
             {
                 'prompts': prompt,
                 'responses': response,
                 'input_ids': seq,
                 'attention_mask': attention_mask,
-                'position_ids': position_ids
+                'position_ids': position_ids,
+                'log_probs': log_probs,
+                'entropy': entropy
             },
             batch_size=batch_size)
 

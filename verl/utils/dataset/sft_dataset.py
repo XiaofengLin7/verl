@@ -47,7 +47,7 @@ class SFTDataset(Dataset):
         response_dict_keys = config.get('response_dict_keys', None)
         max_length = config.get('max_length', 1024)
         truncation = config.get('truncation', 'error')
-        self.apply_chat_template = config.get('apply_chat_template', False)
+        self.chat_template = config.get('chat_template', False)
 
         assert truncation in ['error', 'left', 'right']
         self.truncation = truncation
@@ -122,7 +122,7 @@ class SFTDataset(Dataset):
         prompt_chat = [{'role': 'user', 'content': prompt}]
 
         # string
-        if self.apply_chat_template:
+        if self.chat_template:
             prompt_chat_str = tokenizer.apply_chat_template(prompt_chat, add_generation_prompt=True, tokenize=False)
         else:
             prompt_chat_str = prompt

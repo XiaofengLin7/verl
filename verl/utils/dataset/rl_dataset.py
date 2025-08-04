@@ -87,6 +87,7 @@ class RLHFDataset(Dataset):
                  filter_prompts=True,
                  cache_dir='~/.cache/verl/rlhf',
                  chat_template_func=None,
+                 chat_template=False,
                  return_raw_chat=False,
                  truncation='error',
                  filter_overlong_prompts=False):
@@ -112,6 +113,7 @@ class RLHFDataset(Dataset):
         # whether to store the dataset in state_dict()
         # default not store
         self.serialize_dataset = False
+        self.chat_template = chat_template
         self._download()
         self._read_files_and_tokenize()
 
@@ -160,8 +162,11 @@ class RLHFDataset(Dataset):
         row_dict: dict = self.dataframe.iloc[item].to_dict()
 
         chat = row_dict.pop(self.prompt_key)
-
-        prompt_with_chat_template = chat[0]['content']
+        if self.chat_template:
+            prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
+            # print(prompt_with_chat_template)
+        else:
+            prompt_with_chat_template = chat[0]['content']
 
         input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
                                                                          tokenizer=self.tokenizer,

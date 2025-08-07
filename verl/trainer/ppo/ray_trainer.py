@@ -296,6 +296,7 @@ class RayPPOTrainer(object):
 
         self._validate_config()
         self._create_dataloader()
+        self.MAX_REWARD = 5 if self.config.reward_model.reward_manager == 'gp_l' else 1
 
     def _validate_config(self):
         config = self.config
@@ -581,15 +582,21 @@ class RayPPOTrainer(object):
 
         # evaluate test_score based on data source
         data_source_reward = {}
+        data_source_acc = {}
         for i in range(reward_tensor.shape[0]):
             data_source = data_sources[i]
             if data_source not in data_source_reward:
                 data_source_reward[data_source] = []
             data_source_reward[data_source].append(reward_tensor[i].item())
+            if data_source not in data_source_acc:
+                data_source_acc[data_source] = []
+            data_source_acc[data_source].append(reward_tensor[i].item()==self.MAX_REWARD)
 
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
             metric_dict[f'val/test_score/{data_source}'] = np.mean(rewards)
+        for data_source, accs in data_source_acc.items():
+            metric_dict[f'val/test_acc/{data_source}'] = np.mean(accs)
 
         return metric_dict
 

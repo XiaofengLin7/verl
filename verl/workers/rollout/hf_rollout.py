@@ -45,7 +45,12 @@ class HFRollout(BaseRollout):
         batch_size = prompts.batch.batch_size[0]
         num_chunks = max(batch_size // self.config.get('micro_batch_size', batch_size), 1)
         batch_prompts = prompts.chunk(chunks=num_chunks)
-        output = [self._generate_minibatch(p) for p in batch_prompts]
+        # Process minibatches sequentially to minimize peak memory
+        output = []
+        for p in batch_prompts:
+            out = self._generate_minibatch(p)
+            output.append(out)
+            torch.cuda.empty_cache()
         output = DataProto.concat(output)
         return output
 
@@ -99,13 +104,15 @@ class HFRollout(BaseRollout):
                     # renormalize_logits=True,
                     output_scores=False,  # this is potentially very large
                     return_dict_in_generate=True,
-                    use_cache=True,
-                    synced_gpus=True)
+                    use_cache=prompts.meta_info.get('use_cache', True),
+                    synced_gpus=prompts.meta_info.get('synced_gpus', False))
                 
-                raw_output = self.module(input_ids=idx,
-                                         attention_mask=attention_mask,
-                                         position_ids=position_ids,
-                                         use_cache=False)
+                compute_lp = prompts.meta_info.get('recompute_log_prob', True)
+                if compute_lp:
+                    raw_output = self.module(input_ids=idx,
+                                             attention_mask=attention_mask,
+                                             position_ids=position_ids,
+                                             use_cache=False)
         # TODO: filter out the seq with no answers like ds-chat
         seq = output.sequences
 
@@ -135,24 +142,35 @@ class HFRollout(BaseRollout):
                                                     eos_token=eos_token_id,
                                                     dtype=attention_mask.dtype)
         attention_mask = torch.cat((attention_mask, response_attention_mask), dim=-1)
+        if compute_lp:
 
-        logits = raw_output.logits
-        logits.div_(temperature)
-        logits = logits[:, -response_length - 1:-1, :]  # (bsz, response_length, vocab_size)
-        log_probs = logprobs_from_logits(logits, response)
-        entropy = verl_F.entropy_from_logits(logits)  # (bsz, response_length)
+            logits = raw_output.logits
+            logits.div_(temperature)
+            logits = logits[:, -response_length - 1:-1, :]  # (bsz, response_length, vocab_size)
+            log_probs = logprobs_from_logits(logits, response)
+            entropy = verl_F.entropy_from_logits(logits)  # (bsz, response_length)
 
-        batch = TensorDict(
-            {
-                'prompts': prompt,
-                'responses': response,
-                'input_ids': seq,
-                'attention_mask': attention_mask,
-                'position_ids': position_ids,
-                'log_probs': log_probs,
-                'entropy': entropy
-            },
-            batch_size=batch_size)
+            batch = TensorDict(
+                {
+                    'prompts': prompt,
+                    'responses': response,
+                    'input_ids': seq,
+                    'attention_mask': attention_mask,
+                    'position_ids': position_ids,
+                    'log_probs': log_probs,
+                    'entropy': entropy
+                },
+                batch_size=batch_size)
+        else:
+            batch = TensorDict(
+                {
+                    'prompts': prompt,
+                    'responses': response,
+                    'input_ids': seq,
+                    'attention_mask': attention_mask,
+                    'position_ids': position_ids
+                },
+                batch_size=batch_size)
 
         # empty cache before compute old_log_prob
         torch.cuda.empty_cache()

@@ -583,6 +583,7 @@ class RayPPOTrainer(object):
         # evaluate test_score based on data source
         data_source_reward = {}
         data_source_acc = {}
+        data_source_valid = {}
         for i in range(reward_tensor.shape[0]):
             data_source = data_sources[i]
             if data_source not in data_source_reward:
@@ -591,12 +592,19 @@ class RayPPOTrainer(object):
             if data_source not in data_source_acc:
                 data_source_acc[data_source] = []
             data_source_acc[data_source].append(reward_tensor[i].item()==self.MAX_REWARD)
-
+            if "gp_l" in data_source:
+                if data_source not in data_source_valid:
+                    data_source_valid[data_source] = []
+                data_source_valid[data_source].append(reward_tensor[i].item()>=-1)
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
             metric_dict[f'val/test_score/{data_source}'] = np.mean(rewards)
         for data_source, accs in data_source_acc.items():
             metric_dict[f'val/test_acc/{data_source}'] = np.mean(accs)
+
+        if data_source_valid is not None:
+            for data_source, valid in data_source_valid.items():
+                metric_dict[f'val/test_valid/{data_source}'] = np.mean(valid)
 
         return metric_dict
 
